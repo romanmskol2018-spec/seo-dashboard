@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   LineChart,
   Line,
@@ -8,20 +9,36 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
-import { formatDateShort, formatPct } from "@/lib/format";
-import type { TrendRow } from "@/lib/data";
+import { formatBucketLabel, formatPct } from "@/lib/format";
+import { useChartTheme } from "@/components/useChartTheme";
+import { ChartLegend } from "@/components/TrafficChart";
+import type { TrendRow, Granularity } from "@/lib/data";
 
 type Series = { id: string; name: string; color: string };
 
 export function VisibilityChart({
   data,
   series,
+  granularity = "day",
 }: {
   data: TrendRow[];
   series: Series[];
+  granularity?: Granularity;
 }) {
+  const t = useChartTheme();
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const labelFmt = (v: string) => formatBucketLabel(String(v), granularity);
+
+  function toggle(id: string) {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   if (data.length === 0) {
     return (
       <div className="h-72 flex items-center justify-center text-muted">
@@ -29,49 +46,53 @@ export function VisibilityChart({
       </div>
     );
   }
+
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#263150" vertical={false} />
-        <XAxis
-          dataKey="date"
-          tickFormatter={formatDateShort}
-          stroke="#9aa7c2"
-          fontSize={12}
-          tickLine={false}
-        />
-        <YAxis
-          stroke="#9aa7c2"
-          fontSize={12}
-          tickLine={false}
-          tickFormatter={(v) => `${v}%`}
-          width={45}
-          domain={[0, "auto"]}
-        />
-        <Tooltip
-          contentStyle={{
-            background: "#131a2e",
-            border: "1px solid #263150",
-            borderRadius: 12,
-            color: "#e8edf7",
-          }}
-          labelFormatter={(l) => formatDateShort(String(l))}
-          formatter={(value, name) => [formatPct(Number(value)), String(name)]}
-        />
-        <Legend wrapperStyle={{ fontSize: 12 }} />
-        {series.map((s) => (
-          <Line
-            key={s.id}
-            type="monotone"
-            dataKey={s.id}
-            name={s.name}
-            stroke={s.color}
-            strokeWidth={2}
-            dot={false}
-            connectNulls
+    <div>
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={t.grid} vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickFormatter={labelFmt}
+            stroke={t.axis}
+            fontSize={12}
+            tickLine={false}
           />
-        ))}
-      </LineChart>
-    </ResponsiveContainer>
+          <YAxis
+            stroke={t.axis}
+            fontSize={12}
+            tickLine={false}
+            tickFormatter={(v) => `${v}%`}
+            width={45}
+            domain={[0, "auto"]}
+          />
+          <Tooltip
+            contentStyle={{
+              background: t.tooltipBg,
+              border: `1px solid ${t.tooltipBorder}`,
+              borderRadius: 12,
+              color: t.tooltipText,
+            }}
+            labelFormatter={(l) => labelFmt(String(l))}
+            formatter={(value, name) => [formatPct(Number(value)), String(name)]}
+          />
+          {series.map((s) => (
+            <Line
+              key={s.id}
+              type="monotone"
+              dataKey={s.id}
+              name={s.name}
+              stroke={s.color}
+              strokeWidth={2}
+              dot={false}
+              connectNulls
+              hide={hidden.has(s.id)}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+      <ChartLegend series={series} hidden={hidden} onToggle={toggle} />
+    </div>
   );
 }

@@ -5,6 +5,7 @@ import { StatCard } from "@/components/StatCard";
 import { PeriodSwitcher } from "@/components/PeriodSwitcher";
 import { GroupSwitcher } from "@/components/GroupSwitcher";
 import { TrafficChart } from "@/components/TrafficChart";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import type { Granularity } from "@/lib/data";
 import { VisibilityChart } from "@/components/VisibilityChart";
 import { formatNumber, formatPct, formatDelta } from "@/lib/format";
@@ -61,6 +62,7 @@ export default async function DashboardPage(props: {
         </div>
         <div className="flex items-center gap-3">
           <PeriodSwitcher current={days} group={granularity} />
+          <ThemeToggle />
           <Link
             href={user ? "/admin" : "/login"}
             className="px-4 py-2 text-sm rounded-lg bg-surface border border-border hover:border-accent transition"
@@ -125,7 +127,7 @@ export default async function DashboardPage(props: {
 
           {/* Таблица по сайтам */}
           <section className="bg-surface border border-border rounded-2xl p-5 mb-8 overflow-x-auto">
-            <h2 className="font-medium mb-4">Сайты</h2>
+            <h2 className="font-medium mb-4">Трафик по Метрике</h2>
             {data.sites.length === 0 ? (
               <p className="text-muted text-sm">
                 Пока нет сайтов. Добавь их в админке.

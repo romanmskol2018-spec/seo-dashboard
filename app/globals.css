@@ -12,6 +12,18 @@
   --negative: #ef4444;
 }
 
+html.light {
+  --background: #f5f7fb;
+  --surface: #ffffff;
+  --surface-2: #eef2f9;
+  --border: #dce3ef;
+  --foreground: #0f1729;
+  --muted: #5b6b88;
+  --accent: #2563eb;
+  --positive: #16a34a;
+  --negative: #dc2626;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type Site = {
   id: string;
@@ -121,6 +122,7 @@ export function AdminClient({ userName }: { userName: string }) {
           <p className="text-muted text-sm">{userName}</p>
         </div>
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <Link
             href="/"
             className="px-4 py-2 text-sm rounded-lg bg-surface border border-border hover:border-accent transition"
