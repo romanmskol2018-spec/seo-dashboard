@@ -1,0 +1,205 @@
+import { prisma } from "@/lib/prisma";
+
+export type SiteSummary = {
+  id: string;
+  name: string;
+  domain: string;
+  color: string;
+  visits: number;
+  visitors: number;
+  pageviews: number;
+  bounceRate: number;
+  prevVisits: number;
+  deltaPct: number | null;
+};
+
+export type ProjectSummary = {
+  id: string;
+  name: string;
+  color: string;
+  searchEngine: string;
+  visibility: number;
+  avgPosition: number;
+  top3: number;
+  top10: number;
+  top50: number;
+  queriesTotal: number;
+  prevVisibility: number;
+  deltaPct: number | null;
+};
+
+export type TrendRow = { date: string } & Record<string, number | string>;
+
+export type DashboardData = {
+  days: number;
+  sites: SiteSummary[];
+  projects: ProjectSummary[];
+  trafficTrend: TrendRow[];
+  visibilityTrend: TrendRow[];
+  totals: {
+    visits: number;
+    visitors: number;
+    pageviews: number;
+    prevVisits: number;
+    visitsDeltaPct: number | null;
+    avgVisibility: number;
+    prevAvgVisibility: number;
+    visibilityDeltaPct: number | null;
+  };
+};
+
+function fmt(d: Date): string {
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+function startOfDayUTC(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+function deltaPct(curr: number, prev: number): number | null {
+  if (prev === 0) return curr > 0 ? 100 : null;
+  return ((curr - prev) / prev) * 100;
+}
+
+export async function getDashboardData(days: number): Promise<DashboardData> {
+  const today = startOfDayUTC(new Date());
+  const rangeStart = new Date(today);
+  rangeStart.setUTCDate(today.getUTCDate() - (days - 1));
+  const prevStart = new Date(rangeStart);
+  prevStart.setUTCDate(rangeStart.getUTCDate() - days);
+
+  const [sites, projects, traffic, visibility] = await Promise.all([
+    prisma.site.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.project.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.trafficData.findMany({
+      where: { source: "all", date: { gte: prevStart } },
+      orderBy: { date: "asc" },
+    }),
+    prisma.visibilityData.findMany({
+      where: { date: { gte: prevStart } },
+      orderBy: { date: "asc" },
+    }),
+  ]);
+
+  // ---- Трафик по сайтам ----
+  const siteSummaries: SiteSummary[] = sites.map((site) => {
+    const curr = traffic.filter(
+      (t) => t.siteId === site.id && t.date >= rangeStart
+    );
+    const prev = traffic.filter(
+      (t) => t.siteId === site.id && t.date >= prevStart && t.date < rangeStart
+    );
+    const visits = curr.reduce((s, t) => s + t.visits, 0);
+    const visitors = curr.reduce((s, t) => s + t.visitors, 0);
+    const pageviews = curr.reduce((s, t) => s + t.pageviews, 0);
+    const bounceRate =
+      curr.length > 0
+        ? curr.reduce((s, t) => s + t.bounceRate, 0) / curr.length
+        : 0;
+    const prevVisits = prev.reduce((s, t) => s + t.visits, 0);
+    return {
+      id: site.id,
+      name: site.name,
+      domain: site.domain,
+      color: site.color,
+      visits,
+      visitors,
+      pageviews,
+      bounceRate,
+      prevVisits,
+      deltaPct: deltaPct(visits, prevVisits),
+    };
+  });
+
+  // ---- Видимость по проектам ----
+  const projectSummaries: ProjectSummary[] = projects.map((project) => {
+    const curr = visibility
+      .filter((v) => v.projectId === project.id && v.date >= rangeStart)
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+    const prev = visibility
+      .filter(
+        (v) =>
+          v.projectId === project.id &&
+          v.date >= prevStart &&
+          v.date < rangeStart
+      )
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+    const last = curr[curr.length - 1];
+    const prevLast = prev[prev.length - 1];
+    return {
+      id: project.id,
+      name: project.name,
+      color: project.color,
+      searchEngine: project.searchEngine,
+      visibility: last?.visibility ?? 0,
+      avgPosition: last?.avgPosition ?? 0,
+      top3: last?.top3 ?? 0,
+      top10: last?.top10 ?? 0,
+      top50: last?.top50 ?? 0,
+      queriesTotal: last?.queriesTotal ?? 0,
+      prevVisibility: prevLast?.visibility ?? 0,
+      deltaPct: deltaPct(last?.visibility ?? 0, prevLast?.visibility ?? 0),
+    };
+  });
+
+  // ---- Тренд трафика (по дням, в разрезе сайтов + total) ----
+  const trafficByDate = new Map<string, TrendRow>();
+  for (const t of traffic) {
+    if (t.date < rangeStart) continue;
+    const key = fmt(t.date);
+    if (!trafficByDate.has(key)) trafficByDate.set(key, { date: key, total: 0 });
+    const row = trafficByDate.get(key)!;
+    row[t.siteId] = ((row[t.siteId] as number) || 0) + t.visits;
+    row.total = (row.total as number) + t.visits;
+  }
+  const trafficTrend = Array.from(trafficByDate.values()).sort((a, b) =>
+    a.date < b.date ? -1 : 1
+  );
+
+  // ---- Тренд видимости (по дням, в разрезе проектов) ----
+  const visByDate = new Map<string, TrendRow>();
+  for (const v of visibility) {
+    if (v.date < rangeStart) continue;
+    const key = fmt(v.date);
+    if (!visByDate.has(key)) visByDate.set(key, { date: key });
+    const row = visByDate.get(key)!;
+    row[v.projectId] = v.visibility;
+  }
+  const visibilityTrend = Array.from(visByDate.values()).sort((a, b) =>
+    a.date < b.date ? -1 : 1
+  );
+
+  // ---- Итоги ----
+  const totalVisits = siteSummaries.reduce((s, x) => s + x.visits, 0);
+  const totalVisitors = siteSummaries.reduce((s, x) => s + x.visitors, 0);
+  const totalPageviews = siteSummaries.reduce((s, x) => s + x.pageviews, 0);
+  const prevTotalVisits = siteSummaries.reduce((s, x) => s + x.prevVisits, 0);
+  const avgVisibility =
+    projectSummaries.length > 0
+      ? projectSummaries.reduce((s, x) => s + x.visibility, 0) /
+        projectSummaries.length
+      : 0;
+  const prevAvgVisibility =
+    projectSummaries.length > 0
+      ? projectSummaries.reduce((s, x) => s + x.prevVisibility, 0) /
+        projectSummaries.length
+      : 0;
+
+  return {
+    days,
+    sites: siteSummaries,
+    projects: projectSummaries,
+    trafficTrend,
+    visibilityTrend,
+    totals: {
+      visits: totalVisits,
+      visitors: totalVisitors,
+      pageviews: totalPageviews,
+      prevVisits: prevTotalVisits,
+      visitsDeltaPct: deltaPct(totalVisits, prevTotalVisits),
+      avgVisibility,
+      prevAvgVisibility,
+      visibilityDeltaPct: deltaPct(avgVisibility, prevAvgVisibility),
+    },
+  };
+}
