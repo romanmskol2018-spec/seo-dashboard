@@ -12,6 +12,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:real": "tsx prisma/seed-real.ts",
     "import:metrika": "tsx prisma/import-metrika.ts",
+    "import:topvisor": "tsx prisma/import-topvisor.ts",
     "db:studio": "prisma studio"
   },
   "prisma": {

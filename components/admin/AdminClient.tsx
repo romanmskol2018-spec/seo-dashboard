@@ -63,11 +63,28 @@ export function AdminClient({ userName }: { userName: string }) {
     try {
       const res = await api("/api/import/metrika", "POST", { days });
       setImportMsg(
-        `Готово: обновлено ${res.okCount}/${res.sites} сайтов, ${res.totalRows} записей за ${days} дн.`
+        `Метрика: обновлено ${res.okCount}/${res.sites} сайтов, ${res.totalRows} записей за ${days} дн.`
       );
       router.refresh();
     } catch (e) {
       setError("Импорт из Метрики: " + (e as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function importTopvisor(days: number) {
+    setImporting(true);
+    setImportMsg("");
+    setError("");
+    try {
+      const res = await api("/api/import/topvisor", "POST", { days });
+      setImportMsg(
+        `Топвизор: обновлено ${res.projects} проектов, ${res.imported} проверок за ${days} дн.`
+      );
+      router.refresh();
+    } catch (e) {
+      setError("Импорт из Топвизора: " + (e as Error).message);
     } finally {
       setImporting(false);
     }
@@ -125,32 +142,60 @@ export function AdminClient({ userName }: { userName: string }) {
         </div>
       )}
 
-      {/* Импорт из Яндекс.Метрики */}
-      <div className="mb-6 bg-surface border border-border rounded-2xl p-4 flex flex-wrap items-center gap-3">
-        <div className="mr-auto">
-          <div className="font-medium">Импорт трафика из Яндекс.Метрики</div>
-          <div className="text-muted text-sm">
-            Подтянет визиты, посетителей, отказы и др. по счётчикам сайтов
+      {/* Импорт данных */}
+      <div className="mb-6 grid md:grid-cols-2 gap-4">
+        <div className="bg-surface border border-border rounded-2xl p-4">
+          <div className="font-medium">Трафик из Яндекс.Метрики</div>
+          <div className="text-muted text-sm mb-3">
+            Визиты, посетители, отказы (только SEO/органика)
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => importMetrika(90)}
+              disabled={importing}
+              className="px-3 py-2 text-sm rounded-lg bg-surface-2 border border-border hover:border-accent disabled:opacity-60 transition"
+            >
+              90 дней
+            </button>
+            <button
+              onClick={() => importMetrika(180)}
+              disabled={importing}
+              className="px-4 py-2 text-sm rounded-lg bg-accent hover:bg-accent/90 text-white disabled:opacity-60 transition"
+            >
+              {importing ? "Импорт…" : "Обновить (180 дн.)"}
+            </button>
           </div>
         </div>
-        {importMsg && (
-          <span className="text-positive text-sm">{importMsg}</span>
-        )}
-        <button
-          onClick={() => importMetrika(30)}
-          disabled={importing}
-          className="px-3 py-2 text-sm rounded-lg bg-surface-2 border border-border hover:border-accent disabled:opacity-60 transition"
-        >
-          {importing ? "Импорт…" : "За 30 дней"}
-        </button>
-        <button
-          onClick={() => importMetrika(90)}
-          disabled={importing}
-          className="px-4 py-2 text-sm rounded-lg bg-accent hover:bg-accent/90 text-white disabled:opacity-60 transition"
-        >
-          {importing ? "Импорт…" : "Обновить (90 дней)"}
-        </button>
+
+        <div className="bg-surface border border-border rounded-2xl p-4">
+          <div className="font-medium">Видимость из Топвизора</div>
+          <div className="text-muted text-sm mb-3">
+            Видимость, средняя позиция, ТОП-3/10/50 по проектам
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => importTopvisor(90)}
+              disabled={importing}
+              className="px-3 py-2 text-sm rounded-lg bg-surface-2 border border-border hover:border-accent disabled:opacity-60 transition"
+            >
+              90 дней
+            </button>
+            <button
+              onClick={() => importTopvisor(180)}
+              disabled={importing}
+              className="px-4 py-2 text-sm rounded-lg bg-accent hover:bg-accent/90 text-white disabled:opacity-60 transition"
+            >
+              {importing ? "Импорт…" : "Обновить (180 дн.)"}
+            </button>
+          </div>
+        </div>
       </div>
+
+      {importMsg && (
+        <div className="mb-6 text-sm text-positive bg-positive/10 border border-positive/30 rounded-lg px-3 py-2">
+          {importMsg}
+        </div>
+      )}
 
       {/* Табы */}
       <div className="flex flex-wrap gap-1 bg-surface border border-border rounded-lg p-1 mb-6 w-fit">
