@@ -24,6 +24,9 @@ export type ProjectSummary = {
   top10: number;
   top50: number;
   queriesTotal: number;
+  top3Delta: number | null;
+  top10Delta: number | null;
+  top50Delta: number | null;
   prevVisibility: number;
   deltaPct: number | null;
 };
@@ -62,6 +65,12 @@ function startOfDayUTC(d: Date): Date {
 function deltaPct(curr: number, prev: number): number | null {
   if (prev === 0) return curr > 0 ? 100 : null;
   return ((curr - prev) / prev) * 100;
+}
+
+// Видимость = доля запросов в ТОП-10 (ТОП-10 / всего запросов), %
+function top10Pct(rec?: { top10: number; queriesTotal: number }): number {
+  if (!rec || !rec.queriesTotal) return 0;
+  return Math.round((rec.top10 / rec.queriesTotal) * 1000) / 10;
 }
 
 // Начало недели (понедельник) в UTC
@@ -200,14 +209,17 @@ export async function getDashboardData(
       name: project.name,
       color: project.color,
       searchEngine: project.searchEngine,
-      visibility: last?.visibility ?? 0,
+      visibility: top10Pct(last),
       avgPosition: last?.avgPosition ?? 0,
       top3: last?.top3 ?? 0,
       top10: last?.top10 ?? 0,
       top50: last?.top50 ?? 0,
       queriesTotal: last?.queriesTotal ?? 0,
-      prevVisibility: prevLast?.visibility ?? 0,
-      deltaPct: deltaPct(last?.visibility ?? 0, prevLast?.visibility ?? 0),
+      top3Delta: prevLast ? (last?.top3 ?? 0) - prevLast.top3 : null,
+      top10Delta: prevLast ? (last?.top10 ?? 0) - prevLast.top10 : null,
+      top50Delta: prevLast ? (last?.top50 ?? 0) - prevLast.top50 : null,
+      prevVisibility: top10Pct(prevLast),
+      deltaPct: deltaPct(top10Pct(last), top10Pct(prevLast)),
     };
   });
 
@@ -233,7 +245,7 @@ export async function getDashboardData(
     const key = fmt(v.date);
     if (!visByDate.has(key)) visByDate.set(key, { date: key });
     const row = visByDate.get(key)!;
-    row[v.projectId] = v.visibility;
+    row[v.projectId] = top10Pct(v);
   }
   const visibilityTrendDaily = Array.from(visByDate.values()).sort((a, b) =>
     a.date < b.date ? -1 : 1

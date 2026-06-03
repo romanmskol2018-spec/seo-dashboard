@@ -11,6 +11,23 @@ import { formatNumber, formatPct, formatDelta } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
+// Прирост/падение количества запросов в топе
+function TopCell({ value, delta }: { value: number; delta: number | null }) {
+  return (
+    <div className="flex items-center justify-end gap-1.5">
+      <span>{value}</span>
+      {delta !== null && delta !== 0 && (
+        <span
+          className={`text-xs ${delta > 0 ? "text-positive" : "text-negative"}`}
+        >
+          {delta > 0 ? "▲" : "▼"}
+          {Math.abs(delta)}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default async function DashboardPage(props: {
   searchParams: Promise<{ period?: string; group?: string }>;
 }) {
@@ -82,7 +99,7 @@ export default async function DashboardPage(props: {
               value={formatNumber(data.totals.pageviews)}
             />
             <StatCard
-              label="Средняя видимость"
+              label="Видимость в ТОП-10 (ср.)"
               value={formatPct(data.totals.avgVisibility)}
               delta={data.totals.visibilityDeltaPct}
               hint="к пред. периоду"
@@ -187,8 +204,8 @@ export default async function DashboardPage(props: {
           {/* График видимости */}
           <section className="bg-surface border border-border rounded-2xl p-5 mb-8">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-medium">Видимость по проектам</h2>
-              <span className="text-muted text-sm">% видимости по дням</span>
+              <h2 className="font-medium">Видимость в ТОП-10 по проектам</h2>
+              <span className="text-muted text-sm">% запросов в ТОП-10</span>
             </div>
             <VisibilityChart
               data={data.visibilityTrend}
@@ -252,9 +269,15 @@ export default async function DashboardPage(props: {
                         <td className="py-3 px-4 text-right">
                           {p.avgPosition.toFixed(1)}
                         </td>
-                        <td className="py-3 px-4 text-right">{p.top3}</td>
-                        <td className="py-3 px-4 text-right">{p.top10}</td>
-                        <td className="py-3 px-4 text-right">{p.top50}</td>
+                        <td className="py-3 px-4 text-right">
+                          <TopCell value={p.top3} delta={p.top3Delta} />
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <TopCell value={p.top10} delta={p.top10Delta} />
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <TopCell value={p.top50} delta={p.top50Delta} />
+                        </td>
                         <td className="py-3 pl-4 text-right">
                           <span
                             className={
