@@ -23,6 +23,29 @@ export function formatDateShort(iso: string): string {
   }).format(d);
 }
 
+export function formatBucketLabel(
+  iso: string,
+  group: "day" | "week" | "month"
+): string {
+  const d = new Date(iso);
+  if (group === "month") {
+    return new Intl.DateTimeFormat("ru-RU", {
+      month: "long",
+      year: "2-digit",
+    }).format(d);
+  }
+  if (group === "week") {
+    return (
+      "с " +
+      new Intl.DateTimeFormat("ru-RU", {
+        day: "2-digit",
+        month: "short",
+      }).format(d)
+    );
+  }
+  return formatDateShort(iso);
+}
+
 export function formatDuration(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.round(sec % 60);

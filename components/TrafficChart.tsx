@@ -10,18 +10,21 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { formatDateShort, formatNumber } from "@/lib/format";
-import type { TrendRow } from "@/lib/data";
+import { formatBucketLabel, formatNumber } from "@/lib/format";
+import type { TrendRow, Granularity } from "@/lib/data";
 
 type Series = { id: string; name: string; color: string };
 
 export function TrafficChart({
   data,
   series,
+  granularity = "day",
 }: {
   data: TrendRow[];
   series: Series[];
+  granularity?: Granularity;
 }) {
+  const labelFmt = (v: string) => formatBucketLabel(String(v), granularity);
   if (data.length === 0) {
     return (
       <div className="h-72 flex items-center justify-center text-muted">
@@ -50,7 +53,7 @@ export function TrafficChart({
         <CartesianGrid strokeDasharray="3 3" stroke="#263150" vertical={false} />
         <XAxis
           dataKey="date"
-          tickFormatter={formatDateShort}
+          tickFormatter={labelFmt}
           stroke="#9aa7c2"
           fontSize={12}
           tickLine={false}
@@ -69,7 +72,7 @@ export function TrafficChart({
             borderRadius: 12,
             color: "#e8edf7",
           }}
-          labelFormatter={(l) => formatDateShort(String(l))}
+          labelFormatter={(l) => labelFmt(String(l))}
           formatter={(value, name) => [formatNumber(Number(value)), String(name)]}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />

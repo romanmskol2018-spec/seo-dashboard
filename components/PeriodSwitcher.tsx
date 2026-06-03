@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Granularity } from "@/lib/data";
 
 const OPTIONS = [
   { days: 7, label: "7 дней" },
@@ -6,13 +7,19 @@ const OPTIONS = [
   { days: 90, label: "90 дней" },
 ];
 
-export function PeriodSwitcher({ current }: { current: number }) {
+export function PeriodSwitcher({
+  current,
+  group,
+}: {
+  current: number;
+  group: Granularity;
+}) {
   return (
     <div className="inline-flex bg-surface border border-border rounded-lg p-1">
       {OPTIONS.map((o) => (
         <Link
           key={o.days}
-          href={`/?period=${o.days}`}
+          href={`/?period=${o.days}&group=${group}`}
           className={`px-3 py-1.5 text-sm rounded-md transition ${
             current === o.days
               ? "bg-accent text-white"

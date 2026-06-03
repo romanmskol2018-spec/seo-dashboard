@@ -53,6 +53,25 @@ export function AdminClient({ userName }: { userName: string }) {
   const [sites, setSites] = useState<Site[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [error, setError] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState("");
+
+  async function importMetrika(days: number) {
+    setImporting(true);
+    setImportMsg("");
+    setError("");
+    try {
+      const res = await api("/api/import/metrika", "POST", { days });
+      setImportMsg(
+        `Готово: обновлено ${res.okCount}/${res.sites} сайтов, ${res.totalRows} записей за ${days} дн.`
+      );
+      router.refresh();
+    } catch (e) {
+      setError("Импорт из Метрики: " + (e as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   const loadAll = useCallback(async () => {
     try {
@@ -105,6 +124,33 @@ export function AdminClient({ userName }: { userName: string }) {
           {error}
         </div>
       )}
+
+      {/* Импорт из Яндекс.Метрики */}
+      <div className="mb-6 bg-surface border border-border rounded-2xl p-4 flex flex-wrap items-center gap-3">
+        <div className="mr-auto">
+          <div className="font-medium">Импорт трафика из Яндекс.Метрики</div>
+          <div className="text-muted text-sm">
+            Подтянет визиты, посетителей, отказы и др. по счётчикам сайтов
+          </div>
+        </div>
+        {importMsg && (
+          <span className="text-positive text-sm">{importMsg}</span>
+        )}
+        <button
+          onClick={() => importMetrika(30)}
+          disabled={importing}
+          className="px-3 py-2 text-sm rounded-lg bg-surface-2 border border-border hover:border-accent disabled:opacity-60 transition"
+        >
+          {importing ? "Импорт…" : "За 30 дней"}
+        </button>
+        <button
+          onClick={() => importMetrika(90)}
+          disabled={importing}
+          className="px-4 py-2 text-sm rounded-lg bg-accent hover:bg-accent/90 text-white disabled:opacity-60 transition"
+        >
+          {importing ? "Импорт…" : "Обновить (90 дней)"}
+        </button>
+      </div>
 
       {/* Табы */}
       <div className="flex flex-wrap gap-1 bg-surface border border-border rounded-lg p-1 mb-6 w-fit">

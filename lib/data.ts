@@ -30,8 +30,11 @@ export type ProjectSummary = {
 
 export type TrendRow = { date: string } & Record<string, number | string>;
 
+export type Granularity = "day" | "week" | "month";
+
 export type DashboardData = {
   days: number;
+  group: Granularity;
   sites: SiteSummary[];
   projects: ProjectSummary[];
   trafficTrend: TrendRow[];
@@ -61,7 +64,73 @@ function deltaPct(curr: number, prev: number): number | null {
   return ((curr - prev) / prev) * 100;
 }
 
-export async function getDashboardData(days: number): Promise<DashboardData> {
+// Начало недели (понедельник) в UTC
+function weekStartUTC(d: Date): Date {
+  const diff = (d.getUTCDay() + 6) % 7; // дней с понедельника
+  const r = new Date(d);
+  r.setUTCDate(d.getUTCDate() - diff);
+  return r;
+}
+
+// Ключ корзины для группировки по дню/неделе/месяцу
+function bucketKey(iso: string, group: Granularity): string {
+  if (group === "day") return iso;
+  const d = new Date(iso);
+  if (group === "month") {
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
+  }
+  return fmt(weekStartUTC(d)); // week
+}
+
+// Суммирует дневные строки тренда в недельные/месячные корзины
+function groupTrend(rows: TrendRow[], group: Granularity): TrendRow[] {
+  if (group === "day") return rows;
+  const map = new Map<string, TrendRow>();
+  for (const row of rows) {
+    const key = bucketKey(row.date as string, group);
+    if (!map.has(key)) map.set(key, { date: key });
+    const bucket = map.get(key)!;
+    for (const [k, v] of Object.entries(row)) {
+      if (k === "date") continue;
+      bucket[k] = ((bucket[k] as number) || 0) + (v as number);
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+
+// Усредняет дневные строки видимости в недельные/месячные корзины
+function groupTrendAvg(rows: TrendRow[], group: Granularity): TrendRow[] {
+  if (group === "day") return rows;
+  const sums = new Map<string, TrendRow>();
+  const counts = new Map<string, Record<string, number>>();
+  for (const row of rows) {
+    const key = bucketKey(row.date as string, group);
+    if (!sums.has(key)) {
+      sums.set(key, { date: key });
+      counts.set(key, {});
+    }
+    const bucket = sums.get(key)!;
+    const cnt = counts.get(key)!;
+    for (const [k, v] of Object.entries(row)) {
+      if (k === "date") continue;
+      bucket[k] = ((bucket[k] as number) || 0) + (v as number);
+      cnt[k] = (cnt[k] || 0) + 1;
+    }
+  }
+  for (const [key, bucket] of sums) {
+    const cnt = counts.get(key)!;
+    for (const k of Object.keys(bucket)) {
+      if (k === "date") continue;
+      bucket[k] = Math.round(((bucket[k] as number) / cnt[k]) * 10) / 10;
+    }
+  }
+  return Array.from(sums.values()).sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+
+export async function getDashboardData(
+  days: number,
+  group: Granularity = "day"
+): Promise<DashboardData> {
   const today = startOfDayUTC(new Date());
   const rangeStart = new Date(today);
   rangeStart.setUTCDate(today.getUTCDate() - (days - 1));
@@ -152,9 +221,10 @@ export async function getDashboardData(days: number): Promise<DashboardData> {
     row[t.siteId] = ((row[t.siteId] as number) || 0) + t.visits;
     row.total = (row.total as number) + t.visits;
   }
-  const trafficTrend = Array.from(trafficByDate.values()).sort((a, b) =>
+  const trafficTrendDaily = Array.from(trafficByDate.values()).sort((a, b) =>
     a.date < b.date ? -1 : 1
   );
+  const trafficTrend = groupTrend(trafficTrendDaily, group);
 
   // ---- Тренд видимости (по дням, в разрезе проектов) ----
   const visByDate = new Map<string, TrendRow>();
@@ -165,9 +235,10 @@ export async function getDashboardData(days: number): Promise<DashboardData> {
     const row = visByDate.get(key)!;
     row[v.projectId] = v.visibility;
   }
-  const visibilityTrend = Array.from(visByDate.values()).sort((a, b) =>
+  const visibilityTrendDaily = Array.from(visByDate.values()).sort((a, b) =>
     a.date < b.date ? -1 : 1
   );
+  const visibilityTrend = groupTrendAvg(visibilityTrendDaily, group);
 
   // ---- Итоги ----
   const totalVisits = siteSummaries.reduce((s, x) => s + x.visits, 0);
@@ -187,6 +258,7 @@ export async function getDashboardData(days: number): Promise<DashboardData> {
 
   return {
     days,
+    group,
     sites: siteSummaries,
     projects: projectSummaries,
     trafficTrend,

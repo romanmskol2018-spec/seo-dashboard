@@ -3,24 +3,31 @@ import { getDashboardData } from "@/lib/data";
 import { getSessionUser } from "@/lib/auth";
 import { StatCard } from "@/components/StatCard";
 import { PeriodSwitcher } from "@/components/PeriodSwitcher";
+import { GroupSwitcher } from "@/components/GroupSwitcher";
 import { TrafficChart } from "@/components/TrafficChart";
+import type { Granularity } from "@/lib/data";
 import { VisibilityChart } from "@/components/VisibilityChart";
 import { formatNumber, formatPct, formatDelta } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage(props: {
-  searchParams: Promise<{ period?: string }>;
+  searchParams: Promise<{ period?: string; group?: string }>;
 }) {
-  const { period } = await props.searchParams;
+  const { period, group } = await props.searchParams;
   const days = [7, 30, 90].includes(Number(period)) ? Number(period) : 30;
+  const granularity: Granularity = ["day", "week", "month"].includes(
+    String(group)
+  )
+    ? (group as Granularity)
+    : "day";
 
   const user = await getSessionUser().catch(() => null);
 
   let data;
   let dbError = false;
   try {
-    data = await getDashboardData(days);
+    data = await getDashboardData(days, granularity);
   } catch {
     dbError = true;
   }
@@ -36,7 +43,7 @@ export default async function DashboardPage(props: {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <PeriodSwitcher current={days} />
+          <PeriodSwitcher current={days} group={granularity} />
           <Link
             href={user ? "/admin" : "/login"}
             className="px-4 py-2 text-sm rounded-lg bg-surface border border-border hover:border-accent transition"
@@ -86,10 +93,11 @@ export default async function DashboardPage(props: {
           <section className="bg-surface border border-border rounded-2xl p-5 mb-8">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-medium">Трафик по сайтам</h2>
-              <span className="text-muted text-sm">визиты по дням</span>
+              <GroupSwitcher current={granularity} period={days} />
             </div>
             <TrafficChart
               data={data.trafficTrend}
+              granularity={granularity}
               series={data.sites.map((s) => ({
                 id: s.id,
                 name: s.name,
