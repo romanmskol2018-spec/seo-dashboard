@@ -12,14 +12,13 @@ export async function POST(request: Request) {
       ? Number(body.days)
       : 180;
 
-    const { imported, results } = await importTopvisorVisibility(days);
+    const { imported, engines } = await importTopvisorVisibility(days);
 
     return NextResponse.json({
       ok: true,
       days,
       imported,
-      projects: results.length,
-      results,
+      engines,
     });
   } catch (e) {
     if (e instanceof Response) return e;

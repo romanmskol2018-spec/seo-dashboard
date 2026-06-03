@@ -38,6 +38,7 @@ export type Granularity = "day" | "week" | "month";
 export type DashboardData = {
   days: number;
   group: Granularity;
+  engine: string;
   sites: SiteSummary[];
   projects: ProjectSummary[];
   trafficTrend: TrendRow[];
@@ -138,7 +139,8 @@ function groupTrendAvg(rows: TrendRow[], group: Granularity): TrendRow[] {
 
 export async function getDashboardData(
   days: number,
-  group: Granularity = "day"
+  group: Granularity = "day",
+  engine: string = "Яндекс"
 ): Promise<DashboardData> {
   const today = startOfDayUTC(new Date());
   const rangeStart = new Date(today);
@@ -154,7 +156,7 @@ export async function getDashboardData(
       orderBy: { date: "asc" },
     }),
     prisma.visibilityData.findMany({
-      where: { date: { gte: prevStart } },
+      where: { date: { gte: prevStart }, searchEngine: engine },
       orderBy: { date: "asc" },
     }),
   ]);
@@ -271,6 +273,7 @@ export async function getDashboardData(
   return {
     days,
     group,
+    engine,
     sites: siteSummaries,
     projects: projectSummaries,
     trafficTrend,

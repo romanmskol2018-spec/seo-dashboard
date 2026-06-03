@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { StatCard } from "@/components/StatCard";
 import { PeriodSwitcher } from "@/components/PeriodSwitcher";
 import { GroupSwitcher } from "@/components/GroupSwitcher";
+import { EngineSwitcher } from "@/components/EngineSwitcher";
 import { TrafficChart } from "@/components/TrafficChart";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import type { Granularity } from "@/lib/data";
@@ -30,22 +31,25 @@ function TopCell({ value, delta }: { value: number; delta: number | null }) {
 }
 
 export default async function DashboardPage(props: {
-  searchParams: Promise<{ period?: string; group?: string }>;
+  searchParams: Promise<{ period?: string; group?: string; engine?: string }>;
 }) {
-  const { period, group } = await props.searchParams;
+  const { period, group, engine } = await props.searchParams;
   const days = [7, 30, 90].includes(Number(period)) ? Number(period) : 30;
   const granularity: Granularity = ["day", "week", "month"].includes(
     String(group)
   )
     ? (group as Granularity)
     : "day";
+  const searchEngine = ["Яндекс", "Google"].includes(String(engine))
+    ? (engine as string)
+    : "Яндекс";
 
   const user = await getSessionUser().catch(() => null);
 
   let data;
   let dbError = false;
   try {
-    data = await getDashboardData(days, granularity);
+    data = await getDashboardData(days, granularity, searchEngine);
   } catch {
     dbError = true;
   }
@@ -61,7 +65,11 @@ export default async function DashboardPage(props: {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <PeriodSwitcher current={days} group={granularity} />
+          <PeriodSwitcher
+            current={days}
+            group={granularity}
+            engine={searchEngine}
+          />
           <ThemeToggle />
           <Link
             href={user ? "/admin" : "/login"}
@@ -112,7 +120,11 @@ export default async function DashboardPage(props: {
           <section className="bg-surface border border-border rounded-2xl p-5 mb-8">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-medium">Трафик по сайтам</h2>
-              <GroupSwitcher current={granularity} period={days} />
+              <GroupSwitcher
+                current={granularity}
+                period={days}
+                engine={searchEngine}
+              />
             </div>
             <TrafficChart
               data={data.trafficTrend}
@@ -207,7 +219,11 @@ export default async function DashboardPage(props: {
           <section className="bg-surface border border-border rounded-2xl p-5 mb-8">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-medium">Видимость в ТОП-10 по проектам</h2>
-              <span className="text-muted text-sm">% запросов в ТОП-10</span>
+              <EngineSwitcher
+                current={searchEngine}
+                period={days}
+                group={granularity}
+              />
             </div>
             <VisibilityChart
               data={data.visibilityTrend}
@@ -221,7 +237,14 @@ export default async function DashboardPage(props: {
 
           {/* Таблица по проектам */}
           <section className="bg-surface border border-border rounded-2xl p-5 overflow-x-auto">
-            <h2 className="font-medium mb-4">Проекты (видимость)</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h2 className="font-medium">Проекты (видимость) · {searchEngine}</h2>
+              <EngineSwitcher
+                current={searchEngine}
+                period={days}
+                group={granularity}
+              />
+            </div>
             {data.projects.length === 0 ? (
               <p className="text-muted text-sm">
                 Пока нет проектов. Добавь их в админке.

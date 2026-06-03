@@ -70,6 +70,7 @@ model VisibilityData {
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectId    String
   date         DateTime @db.Date
+  searchEngine String   @default("Яндекс") // Яндекс | Google
   visibility   Float    @default(0) // % видимости
   avgPosition  Float    @default(0) // средняя позиция
   top3         Int      @default(0) // кол-во запросов в ТОП-3
@@ -77,6 +78,6 @@ model VisibilityData {
   top50        Int      @default(0) // кол-во запросов в ТОП-50
   queriesTotal Int      @default(0) // всего запросов в проекте
 
-  @@unique([projectId, date])
-  @@index([projectId, date])
+  @@unique([projectId, date, searchEngine])
+  @@index([projectId, date, searchEngine])
 }

@@ -1,35 +1,31 @@
 import Link from "next/link";
 import type { Granularity } from "@/lib/data";
 
-const OPTIONS: { group: Granularity; label: string }[] = [
-  { group: "day", label: "Дни" },
-  { group: "week", label: "Недели" },
-  { group: "month", label: "Месяцы" },
-];
+const ENGINES = ["Яндекс", "Google"];
 
-export function GroupSwitcher({
+export function EngineSwitcher({
   current,
   period,
-  engine,
+  group,
 }: {
-  current: Granularity;
+  current: string;
   period: number;
-  engine: string;
+  group: Granularity;
 }) {
   return (
     <div className="inline-flex bg-surface-2 border border-border rounded-lg p-1">
-      {OPTIONS.map((o) => (
+      {ENGINES.map((e) => (
         <Link
-          key={o.group}
-          href={`/?period=${period}&group=${o.group}&engine=${encodeURIComponent(engine)}`}
+          key={e}
+          href={`/?period=${period}&group=${group}&engine=${encodeURIComponent(e)}`}
           scroll={false}
           className={`px-3 py-1 text-xs rounded-md transition ${
-            current === o.group
+            current === e
               ? "bg-accent text-white"
               : "text-muted hover:text-foreground"
           }`}
         >
-          {o.label}
+          {e}
         </Link>
       ))}
     </div>

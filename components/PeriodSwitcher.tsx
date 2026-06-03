@@ -10,16 +10,18 @@ const OPTIONS = [
 export function PeriodSwitcher({
   current,
   group,
+  engine,
 }: {
   current: number;
   group: Granularity;
+  engine: string;
 }) {
   return (
     <div className="inline-flex bg-surface border border-border rounded-lg p-1">
       {OPTIONS.map((o) => (
         <Link
           key={o.days}
-          href={`/?period=${o.days}&group=${group}`}
+          href={`/?period=${o.days}&group=${group}&engine=${encodeURIComponent(engine)}`}
           className={`px-3 py-1.5 text-sm rounded-md transition ${
             current === o.days
               ? "bg-accent text-white"

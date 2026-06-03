@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     const {
       projectId,
       date,
+      searchEngine,
       visibility,
       avgPosition,
       top3,
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
       );
     }
     const day = new Date(date);
+    const engine = searchEngine === "Google" ? "Google" : "Яндекс";
     const data = {
       visibility: Number(visibility) || 0,
       avgPosition: Number(avgPosition) || 0,
@@ -48,8 +50,10 @@ export async function POST(request: Request) {
       queriesTotal: Number(queriesTotal) || 0,
     };
     const row = await prisma.visibilityData.upsert({
-      where: { projectId_date: { projectId, date: day } },
-      create: { projectId, date: day, ...data },
+      where: {
+        projectId_date_searchEngine: { projectId, date: day, searchEngine: engine },
+      },
+      create: { projectId, date: day, searchEngine: engine, ...data },
       update: data,
     });
     return NextResponse.json(row, { status: 201 });

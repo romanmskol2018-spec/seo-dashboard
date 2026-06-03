@@ -81,7 +81,7 @@ export function AdminClient({ userName }: { userName: string }) {
     try {
       const res = await api("/api/import/topvisor", "POST", { days });
       setImportMsg(
-        `Топвизор: обновлено ${res.projects} проектов, ${res.imported} проверок за ${days} дн.`
+        `Топвизор: ${res.imported} проверок (${(res.engines || []).join(", ")}) за ${days} дн.`
       );
       router.refresh();
     } catch (e) {
