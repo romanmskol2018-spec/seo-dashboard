@@ -11,10 +11,33 @@ export type MetrikaDayRow = {
   avgDuration: number;
 };
 
-// Запрос дневной статистики по одному счётчику за период
-export async function fetchCounterTraffic(
+function fmt(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+// Окна по 90 дней (большой период иначе вызывает "Query is too complicated")
+function windows(days: number): { date1: string; date2: string }[] {
+  const t = new Date();
+  let end = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()));
+  let remaining = days;
+  const res: { date1: string; date2: string }[] = [];
+  while (remaining > 0) {
+    const span = Math.min(90, remaining);
+    const start = new Date(end);
+    start.setUTCDate(end.getUTCDate() - (span - 1));
+    res.push({ date1: fmt(start), date2: fmt(end) });
+    end = new Date(start);
+    end.setUTCDate(start.getUTCDate() - 1);
+    remaining -= span;
+  }
+  return res;
+}
+
+// Один интервал; при "too complicated" делит пополам рекурсивно
+async function fetchWindow(
   counter: string,
-  days: number,
+  date1: string,
+  date2: string,
   token: string
 ): Promise<MetrikaDayRow[]> {
   const params = new URLSearchParams({
@@ -22,28 +45,33 @@ export async function fetchCounterTraffic(
     metrics:
       "ym:s:visits,ym:s:users,ym:s:pageviews,ym:s:bounceRate,ym:s:avgVisitDuration",
     dimensions: "ym:s:date",
-    // Только SEO-трафик: переходы из поисковых систем (органика)
     filters: "ym:s:lastsignTrafficSource=='organic'",
-    date1: `${days}daysAgo`,
-    date2: "today",
+    date1,
+    date2,
     group: "day",
     limit: "100000",
   });
-
   const res = await fetch(`${API}?${params.toString()}`, {
     headers: { Authorization: `OAuth ${token}` },
     cache: "no-store",
   });
-
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(
-      `Метрика ${counter}: HTTP ${res.status} ${text.slice(0, 200)}`
-    );
+    if (text.includes("too complicated") && date1 < date2) {
+      const mid = new Date(
+        (new Date(date1).getTime() + new Date(date2).getTime()) / 2
+      );
+      const next = new Date(mid);
+      next.setUTCDate(mid.getUTCDate() + 1);
+      return [
+        ...(await fetchWindow(counter, date1, fmt(mid), token)),
+        ...(await fetchWindow(counter, fmt(next), date2, token)),
+      ];
+    }
+    throw new Error(`Метрика ${counter}: HTTP ${res.status} ${text.slice(0, 160)}`);
   }
-
   const json = await res.json();
-  const rows: MetrikaDayRow[] = (json.data || []).map(
+  return (json.data || []).map(
     (row: { dimensions: { name: string }[]; metrics: number[] }) => ({
       date: row.dimensions[0].name,
       visits: Math.round(row.metrics[0] || 0),
@@ -53,7 +81,19 @@ export async function fetchCounterTraffic(
       avgDuration: Math.round(row.metrics[4] || 0),
     })
   );
-  return rows;
+}
+
+// Запрос дневной статистики по одному счётчику за период (с разбивкой на окна)
+export async function fetchCounterTraffic(
+  counter: string,
+  days: number,
+  token: string
+): Promise<MetrikaDayRow[]> {
+  const all: MetrikaDayRow[] = [];
+  for (const w of windows(days)) {
+    all.push(...(await fetchWindow(counter, w.date1, w.date2, token)));
+  }
+  return all;
 }
 
 export type ImportResult = {

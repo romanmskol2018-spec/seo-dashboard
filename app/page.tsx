@@ -34,7 +34,9 @@ export default async function DashboardPage(props: {
   searchParams: Promise<{ period?: string; group?: string; engine?: string }>;
 }) {
   const { period, group, engine } = await props.searchParams;
-  const days = [7, 30, 90].includes(Number(period)) ? Number(period) : 30;
+  const days = [7, 30, 90, 180, 365].includes(Number(period))
+    ? Number(period)
+    : 30;
   const granularity: Granularity = ["day", "week", "month"].includes(
     String(group)
   )

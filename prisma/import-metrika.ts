@@ -1,21 +1,57 @@
-// Импорт трафика из Яндекс.Метрики по всем сайтам со счётчиком.
+// Импорт трафика из Яндекс.Метрики по всем сайтам со счётчиком (только SEO/органика).
+// Большой период разбивается на окна по 90 дней (иначе API «Query is too complicated»).
 // Запуск: npm run import:metrika  (по умолчанию 90 дней)
-//         npm run import:metrika -- 30
+//         npm run import:metrika -- 365
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 const API = "https://api-metrika.yandex.net/stat/v1/data";
 
-async function fetchCounter(counter: string, days: number, token: string) {
+function fmt(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+// Окна по 90 дней от сегодня назад на `days`
+function windows(days: number): { date1: string; date2: string }[] {
+  const today = new Date();
+  let end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  let remaining = days;
+  const res: { date1: string; date2: string }[] = [];
+  while (remaining > 0) {
+    const span = Math.min(90, remaining);
+    const start = new Date(end);
+    start.setUTCDate(end.getUTCDate() - (span - 1));
+    res.push({ date1: fmt(start), date2: fmt(end) });
+    end = new Date(start);
+    end.setUTCDate(start.getUTCDate() - 1);
+    remaining -= span;
+  }
+  return res;
+}
+
+type Row = {
+  date: string;
+  visits: number;
+  visitors: number;
+  pageviews: number;
+  bounceRate: number;
+  avgDuration: number;
+};
+
+async function fetchRange(
+  counter: string,
+  date1: string,
+  date2: string,
+  token: string
+): Promise<Row[]> {
   const params = new URLSearchParams({
     ids: counter,
     metrics:
       "ym:s:visits,ym:s:users,ym:s:pageviews,ym:s:bounceRate,ym:s:avgVisitDuration",
     dimensions: "ym:s:date",
-    // Только SEO-трафик: переходы из поисковых систем (органика)
     filters: "ym:s:lastsignTrafficSource=='organic'",
-    date1: `${days}daysAgo`,
-    date2: "today",
+    date1,
+    date2,
     group: "day",
     limit: "100000",
   });
@@ -34,7 +70,20 @@ async function fetchCounter(counter: string, days: number, token: string) {
   }
   if (!res) throw new Error(`сеть: ${(lastErr as Error)?.message || "fetch failed"}`);
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const text = await res.text();
+    // Слишком тяжёлый запрос — делим интервал пополам и пробуем рекурсивно
+    if (text.includes("too complicated") && date1 < date2) {
+      const a = new Date(date1);
+      const b = new Date(date2);
+      const mid = new Date((a.getTime() + b.getTime()) / 2);
+      const midStr = fmt(mid);
+      const next = new Date(mid);
+      next.setUTCDate(mid.getUTCDate() + 1);
+      const left = await fetchRange(counter, date1, midStr, token);
+      const right = await fetchRange(counter, fmt(next), date2, token);
+      return [...left, ...right];
+    }
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 160)}`);
   }
   const json = await res.json();
   return (json.data || []).map(
@@ -58,37 +107,39 @@ async function main() {
     where: { metrikaCounter: { not: null } },
     orderBy: { createdAt: "asc" },
   });
-  console.log(`📥 Импорт из Метрики за ${days} дней, сайтов: ${sites.length}`);
+  const wins = windows(days);
+  console.log(`📥 Импорт из Метрики за ${days} дн. (${wins.length} окон), сайтов: ${sites.length}`);
 
   for (const site of sites) {
+    let total = 0;
+    let count = 0;
     try {
-      const rows = await fetchCounter(site.metrikaCounter!, days, token);
-      for (const r of rows) {
-        const date = new Date(r.date);
-        const data = {
-          visits: r.visits,
-          visitors: r.visitors,
-          pageviews: r.pageviews,
-          bounceRate: r.bounceRate,
-          avgDuration: r.avgDuration,
-        };
-        await prisma.trafficData.upsert({
-          where: {
-            siteId_date_source: { siteId: site.id, date, source: "all" },
-          },
-          create: { siteId: site.id, date, source: "all", ...data },
-          update: data,
-        });
+      for (const w of wins) {
+        const rows = await fetchRange(site.metrikaCounter!, w.date1, w.date2, token);
+        for (const r of rows) {
+          const date = new Date(r.date);
+          const data = {
+            visits: r.visits,
+            visitors: r.visitors,
+            pageviews: r.pageviews,
+            bounceRate: r.bounceRate,
+            avgDuration: r.avgDuration,
+          };
+          await prisma.trafficData.upsert({
+            where: { siteId_date_source: { siteId: site.id, date, source: "all" } },
+            create: { siteId: site.id, date, source: "all", ...data },
+            update: data,
+          });
+          total += r.visits;
+          count++;
+        }
+        await new Promise((r) => setTimeout(r, 300));
       }
-      const total = rows.reduce(
-        (s: number, r: { visits: number }) => s + r.visits,
-        0
-      );
-      console.log(`  ✓ ${site.name}: ${rows.length} дн., ${total} визитов`);
+      console.log(`  ✓ ${site.name}: ${count} дн., ${total} визитов`);
     } catch (e) {
       console.log(`  ✗ ${site.name}: ${(e as Error).message}`);
     }
-    await new Promise((r) => setTimeout(r, 600)); // пауза между сайтами
+    await new Promise((r) => setTimeout(r, 400));
   }
   console.log("🎉 Импорт завершён");
 }
