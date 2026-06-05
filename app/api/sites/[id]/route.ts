@@ -22,6 +22,7 @@ export async function PATCH(
               : null
             : undefined,
         color: body.color,
+        hidden: typeof body.hidden === "boolean" ? body.hidden : undefined,
       },
     });
     return NextResponse.json(site);

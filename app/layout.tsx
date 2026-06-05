@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SEO Дашборд",
+  title: "SEO Дашборд Посёлки",
   description: "Аналитика трафика и видимости по проектам",
 };
 

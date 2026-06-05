@@ -11,6 +11,7 @@ type Site = {
   domain: string;
   metrikaCounter: string | null;
   color: string;
+  hidden: boolean;
   _count?: { traffic: number; projects: number };
 };
 
@@ -278,6 +279,15 @@ function SitesTab({
     }
   }
 
+  async function toggleHidden(s: Site) {
+    try {
+      await api(`/api/sites/${s.id}`, "PATCH", { hidden: !s.hidden });
+      reload();
+    } catch (e) {
+      onError((e as Error).message);
+    }
+  }
+
   return (
     <div className="grid lg:grid-cols-3 gap-6">
       <form
@@ -332,6 +342,7 @@ function SitesTab({
                 <th className="py-2 pr-4 font-medium">Сайт</th>
                 <th className="py-2 px-4 font-medium">Метрика</th>
                 <th className="py-2 px-4 font-medium text-right">Записей</th>
+                <th className="py-2 px-4 font-medium text-center">Дашборд</th>
                 <th className="py-2 pl-4 font-medium text-right"></th>
               </tr>
             </thead>
@@ -358,6 +369,23 @@ function SitesTab({
                   </td>
                   <td className="py-3 px-4 text-right text-muted">
                     {s._count?.traffic ?? 0}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <button
+                      onClick={() => toggleHidden(s)}
+                      title={
+                        s.hidden
+                          ? "Скрыт из дашборда — нажми, чтобы показать"
+                          : "Показан на дашборде — нажми, чтобы скрыть"
+                      }
+                      className={`text-xs px-2.5 py-1 rounded-md border transition ${
+                        s.hidden
+                          ? "border-border text-muted hover:border-accent"
+                          : "border-positive/40 text-positive hover:border-positive"
+                      }`}
+                    >
+                      {s.hidden ? "Скрыт" : "Показан"}
+                    </button>
                   </td>
                   <td className="py-3 pl-4 text-right">
                     <button

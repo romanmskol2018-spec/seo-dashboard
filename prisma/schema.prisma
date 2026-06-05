@@ -28,6 +28,7 @@ model Site {
   domain          String
   metrikaCounter  String?       // ID счётчика Яндекс.Метрики
   color           String        @default("#3b82f6") // цвет на графиках
+  hidden          Boolean       @default(false) // скрыт из дашборда (данные сохраняются)
   createdAt       DateTime      @default(now())
   traffic         TrafficData[]
   projects        Project[]

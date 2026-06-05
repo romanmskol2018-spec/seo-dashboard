@@ -148,15 +148,32 @@ export async function getDashboardData(
   const prevStart = new Date(rangeStart);
   prevStart.setUTCDate(rangeStart.getUTCDate() - days);
 
-  const [sites, projects, traffic, visibility] = await Promise.all([
-    prisma.site.findMany({ orderBy: { createdAt: "asc" } }),
-    prisma.project.findMany({ orderBy: { createdAt: "asc" } }),
+  // Сначала берём только видимые (не скрытые) сайты и связанные с ними проекты
+  const [sites, projects] = await Promise.all([
+    prisma.site.findMany({
+      where: { hidden: false },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.project.findMany({
+      where: { OR: [{ siteId: null }, { site: { hidden: false } }] },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
+  const siteIds = sites.map((s) => s.id);
+  const projectIds = projects.map((p) => p.id);
+
+  // Данные тянем только по видимым сайтам/проектам, чтобы скрытые не попадали в итоги и тренды
+  const [traffic, visibility] = await Promise.all([
     prisma.trafficData.findMany({
-      where: { source: "all", date: { gte: prevStart } },
+      where: { source: "all", siteId: { in: siteIds }, date: { gte: prevStart } },
       orderBy: { date: "asc" },
     }),
     prisma.visibilityData.findMany({
-      where: { date: { gte: prevStart }, searchEngine: engine },
+      where: {
+        projectId: { in: projectIds },
+        date: { gte: prevStart },
+        searchEngine: engine,
+      },
       orderBy: { date: "asc" },
     }),
   ]);
