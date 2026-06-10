@@ -142,9 +142,12 @@ export async function getDashboardData(
   group: Granularity = "day",
   engine: string = "Яндекс"
 ): Promise<DashboardData> {
-  const today = startOfDayUTC(new Date());
-  const rangeStart = new Date(today);
-  rangeStart.setUTCDate(today.getUTCDate() - (days - 1));
+  // Текущий день ещё не закончился, поэтому период считаем по последний ПОЛНЫЙ день (вчера).
+  // Иначе неполный сегодняшний день занижает текущий период и даёт ложную отрицательную динамику.
+  const lastComplete = startOfDayUTC(new Date());
+  lastComplete.setUTCDate(lastComplete.getUTCDate() - 1);
+  const rangeStart = new Date(lastComplete);
+  rangeStart.setUTCDate(lastComplete.getUTCDate() - (days - 1));
   const prevStart = new Date(rangeStart);
   prevStart.setUTCDate(rangeStart.getUTCDate() - days);
 
@@ -165,13 +168,17 @@ export async function getDashboardData(
   // Данные тянем только по видимым сайтам/проектам, чтобы скрытые не попадали в итоги и тренды
   const [traffic, visibility] = await Promise.all([
     prisma.trafficData.findMany({
-      where: { source: "all", siteId: { in: siteIds }, date: { gte: prevStart } },
+      where: {
+        source: "all",
+        siteId: { in: siteIds },
+        date: { gte: prevStart, lte: lastComplete },
+      },
       orderBy: { date: "asc" },
     }),
     prisma.visibilityData.findMany({
       where: {
         projectId: { in: projectIds },
-        date: { gte: prevStart },
+        date: { gte: prevStart, lte: lastComplete },
         searchEngine: engine,
       },
       orderBy: { date: "asc" },
